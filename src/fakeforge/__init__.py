@@ -24,5 +24,5 @@ Homepage: https://fakeforge.com.br
 from fakeforge.client import FakeForge
 from fakeforge.exceptions import FakeForgeError
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"
 __all__ = ["FakeForge", "FakeForgeError"]

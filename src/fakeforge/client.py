@@ -1,6 +1,10 @@
 """Cliente principal do SDK FakeForge."""
 
+# list[str] nas anotações só roda no 3.8 com avaliação adiada
+from __future__ import annotations
+
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -12,7 +16,7 @@ T = TypeVar("T")
 
 DEFAULT_BASE_URL = "https://fakeforge.com.br"
 DEFAULT_TIMEOUT = 30.0
-USER_AGENT = "fakeforge-python-sdk/0.1.0"
+USER_AGENT = "fakeforge-python-sdk/0.3.0"
 
 
 class FakeForge:
@@ -21,13 +25,12 @@ class FakeForge:
 
     Example:
         >>> from fakeforge import FakeForge
-        >>> ff = FakeForge()
+        >>> ff = FakeForge()  # usa FAKEFORGE_API_KEY se existir
         >>> cpfs = ff.cpf(10)  # 10 CPFs válidos (mod-11)
-        >>> customers = ff.preset("customer", 100)  # pessoa correlacionada
+        >>> clientes = ff.customer(3)  # mesma pessoa em todos os campos
 
-    Example com API key (plano Dev/Team):
-        >>> import os
-        >>> ff = FakeForge(api_key=os.environ["FAKEFORGE_API_KEY"])
+    Example com chave explícita (plano Dev/Team):
+        >>> ff = FakeForge(api_key="ff_...")
         >>> cpfs = ff.cpf(10000)  # até 10.000 por chamada no Dev
     """
 
@@ -39,12 +42,14 @@ class FakeForge:
     ) -> None:
         """
         Args:
-            api_key: API key opcional (plano Dev/Team). Sem key, usa tier
-                grátis: 50 chamadas/dia por IP.
+            api_key: chave da API. Se não for passada, lê a variável de
+                ambiente FAKEFORGE_API_KEY. Sem chave: 50 chamadas/dia por IP
+                e até 50 itens por chamada. Chave grátis: 100 itens por
+                chamada. Dev: 10.000 chamadas/dia e 10.000 itens por chamada.
             base_url: URL base da API. Só mude se for self-hosted.
             timeout: Timeout em segundos pra cada request. Default: 30s.
         """
-        self.api_key = api_key
+        self.api_key = api_key if api_key is not None else (os.environ.get("FAKEFORGE_API_KEY") or None)
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
@@ -97,7 +102,7 @@ class FakeForge:
             raise FakeForgeError(message, status=status, body=body)
 
         data = body.get("data", [])
-        return cast(list[Any], data)
+        return cast("list[Any]", data)
 
     # === Documentos pessoais ===
 
@@ -164,7 +169,7 @@ class FakeForge:
     # === Pessoa completa ===
 
     def person(self, quantity: int = 1, formatted: bool = True) -> list[dict[str, Any]]:
-        """Gera pessoa completa correlacionada (nome + CPF + email + telefone)."""
+        """Gera nome e gênero. Para CPF, email, telefone e endereço da mesma pessoa, use customer()."""
         return self._request("person", quantity, formatted)
 
     def full_name(self, quantity: int = 1) -> list[str]:
@@ -182,34 +187,46 @@ class FakeForge:
         return self._request("pixKey", quantity)
 
     def bank_account(self, quantity: int = 1, formatted: bool = True) -> list[dict[str, Any]]:
-        """Gera conta bancária brasileira (banco + agência + conta com DV)."""
+        """Gera conta bancária com código COMPE real (15 bancos); o dígito da conta é sorteado."""
         return self._request("bankAccount", quantity, formatted)
 
     # === Empresa ===
 
     def company(self, quantity: int = 1, formatted: bool = True) -> list[dict[str, Any]]:
-        """Gera empresa completa (CNPJ + razão social + endereço)."""
+        """Gera empresa completa (CNPJ, razão social, nome fantasia, IE, contato e endereço)."""
         return self._request("company", quantity, formatted)
 
-    # === Presets correlacionados ===
+    # === Presets (dados relacionados) ===
 
     def preset(self, name: str, quantity: int = 1, formatted: bool = True) -> list[dict[str, Any]]:
         """
-        Gera dados correlacionados via preset.
+        Gera dados relacionados via preset: cada item é um cliente ou pedido
+        inteiro, com campos que batem entre si (chaves Pix do próprio CPF,
+        email e celular; cartão no nome do titular; total que fecha com o
+        carrinho).
 
         Presets disponíveis:
-        - customer: pessoa + endereço + email + telefone + PIX
+        - fintech: cliente + chaves PIX + conta bancária + cartão + score + renda
+        - ecom: pedido com cliente, endereços, carrinho, pagamento e totais
+        - customer: nome, CPF, email, telefone e endereço
         - employee: pessoa + conta bancária + PIX
         - company: empresa + endereço + contato
         - ecommerce_order: cliente + cartão + entrega
         - contact_list: nome + email + telefone
 
+        Sem chave e no Free a API devolve amostra de até 3 por chamada; nos
+        planos pagos, até 2.000.
+
         Example:
-            >>> customers = ff.preset("customer", 100)
-            >>> for c in customers:
-            ...     print(c["name"], c["cpf"], c["email"])
+            >>> clientes = ff.preset("customer", 3)
+            >>> for c in clientes:
+            ...     print(c["nome"], c["cpf"], c["email"], c["endereco"]["city"])
         """
         return self._request(name, quantity, formatted, is_preset=True)
+
+    def customer(self, quantity: int = 1) -> list[dict[str, Any]]:
+        """Atalho para preset("customer"): nome, CPF, email, telefone e endereço da mesma pessoa."""
+        return self._request("customer", quantity, True, is_preset=True)
 
     # === Genérico ===
 

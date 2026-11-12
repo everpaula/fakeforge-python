@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,7 +17,19 @@ T = TypeVar("T")
 
 DEFAULT_BASE_URL = "https://fakeforge.com.br"
 DEFAULT_TIMEOUT = 30.0
-USER_AGENT = "fakeforge-python-sdk/0.3.0"
+USER_AGENT = "fakeforge-python-sdk/0.4.0"
+
+# Sem chave, a API devolve o header X-FakeForge-Aviso dizendo o que a chave grátis libera e onde
+# pegar. O SDK mostra uma vez por processo, numa linha no stderr. FAKEFORGE_SILENCIAR=1 desliga.
+_avisou = False
+
+
+def _avisar_uma_vez(aviso: Optional[str]) -> None:
+    global _avisou
+    if _avisou or not aviso or os.environ.get("FAKEFORGE_SILENCIAR") == "1":
+        return
+    _avisou = True
+    print(f"[fakeforge] {aviso} (FAKEFORGE_SILENCIAR=1 esconde este aviso)", file=sys.stderr)
 
 
 class FakeForge:
@@ -43,9 +56,10 @@ class FakeForge:
         """
         Args:
             api_key: chave da API. Se não for passada, lê a variável de
-                ambiente FAKEFORGE_API_KEY. Sem chave: 50 chamadas/dia por IP
-                e até 50 itens por chamada. Chave grátis: 100 itens por
-                chamada. Dev: 10.000 chamadas/dia e 10.000 itens por chamada.
+                ambiente FAKEFORGE_API_KEY. Sem chave: 100 itens/dia por IP
+                e até 50 por chamada. Chave grátis (fakeforge.com.br/chave):
+                500 itens/dia e 100 por chamada. Dev: 10.000 chamadas/dia e
+                10.000 itens por chamada.
             base_url: URL base da API. Só mude se for self-hosted.
             timeout: Timeout em segundos pra cada request. Default: 30s.
         """
@@ -83,14 +97,19 @@ class FakeForge:
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as response:
                 status = response.status
+                aviso = response.headers.get("X-FakeForge-Aviso")
                 body_bytes = response.read()
         except urllib.error.HTTPError as e:
             status = e.code
+            aviso = e.headers.get("X-FakeForge-Aviso") if e.headers else None
             body_bytes = e.read()
         except urllib.error.URLError as e:
             raise FakeForgeError(f"Erro de rede: {e.reason}", status=0)
         except TimeoutError:
             raise FakeForgeError(f"Timeout após {self.timeout}s", status=0)
+
+        if not self.api_key:
+            _avisar_uma_vez(aviso)
 
         try:
             body = json.loads(body_bytes)

@@ -46,7 +46,7 @@ def test_sem_chave_avisa_uma_vez(api_falsa, capsys):
     erro = capsys.readouterr().err
     assert erro.count(AVISO) == 1
     assert erro.strip().count("\n") == 0
-    assert api_falsa[0].get_header("User-agent") == "fakeforge-python-sdk/0.4.0"
+    assert api_falsa[0].get_header("User-agent") == "fakeforge-python-sdk/0.5.0"
 
 
 def test_com_chave_nao_avisa(api_falsa, capsys):

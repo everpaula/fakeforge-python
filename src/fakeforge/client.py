@@ -17,7 +17,7 @@ T = TypeVar("T")
 
 DEFAULT_BASE_URL = "https://fakeforge.com.br"
 DEFAULT_TIMEOUT = 30.0
-USER_AGENT = "fakeforge-python-sdk/0.4.0"
+USER_AGENT = "fakeforge-python-sdk/0.5.0"
 
 # Sem chave, a API devolve o header X-FakeForge-Aviso dizendo o que a chave grátis libera e onde
 # pegar. O SDK mostra uma vez por processo, numa linha no stderr. FAKEFORGE_SILENCIAR=1 desliga.
@@ -83,8 +83,9 @@ class FakeForge:
         else:
             params["type"] = type_or_preset
 
-        url = f"{self.base_url}/api/generate?{urllib.parse.urlencode(params)}"
+        return self._get(f"{self.base_url}/api/generate?{urllib.parse.urlencode(params)}")
 
+    def _get(self, url: str) -> list[Any]:
         headers = {
             "Content-Type": "application/json",
             "User-Agent": USER_AGENT,
@@ -122,6 +123,37 @@ class FakeForge:
 
         data = body.get("data", [])
         return cast("list[Any]", data)
+
+    # === Receitas salvas (0.5.0) ===
+
+    def receita(
+        self,
+        nome: str,
+        n: Optional[int] = None,
+        variar: bool = False,
+        versao: Optional[int] = None,
+    ) -> list[Any]:
+        """
+        Chama uma receita salva na sua conta (painel ou "Salvar como receita" no site).
+        A mesma receita devolve os mesmos dados em toda chamada. Precisa de chave.
+
+        Args:
+            nome: o nome da receita, o mesmo de /api/r/<nome>.
+            n: menos linhas que a receita.
+            variar: dados novos nesta chamada, sem mudar a receita.
+            versao: versão anterior, chamável por 30 dias depois de editar (plano Dev).
+
+        Example:
+            >>> clientes = ff.receita("clientes-sp")
+            >>> outros = ff.receita("clientes-sp", variar=True)
+        """
+        params = {"formato": "json"}
+        if n is not None:
+            params["n"] = str(n)
+        if variar:
+            params["variar"] = "1"
+        alvo = f"{nome}@v{versao}" if versao else nome
+        return self._get(f"{self.base_url}/api/r/{urllib.parse.quote(alvo, safe='')}?{urllib.parse.urlencode(params)}")
 
     # === Documentos pessoais ===
 

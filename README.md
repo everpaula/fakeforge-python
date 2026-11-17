@@ -100,6 +100,26 @@ Presets disponíveis:
 
 Sem chave e no Free a API devolve uma amostra de até 3 por preset; para lotes maiores, use o passe de 7 dias ou o plano Dev.
 
+## Receitas: os mesmos dados em todo teste (0.5.0)
+
+Salve um conjunto de dados como receita (no gerador do site, em "Salvar como receita") e chame pelo nome. A mesma
+receita devolve os mesmos dados em toda chamada, então o teste não quebra por causa do dado. Precisa de chave.
+
+```python
+import os
+from fakeforge import FakeForge
+
+fakeforge = FakeForge(api_key=os.environ["FAKEFORGE_API_KEY"])
+clientes = fakeforge.receita("clientes-sp")
+
+fakeforge.receita("clientes-sp", n=3)         # menos linhas
+fakeforge.receita("clientes-sp", variar=True) # dados novos, a receita não muda
+fakeforge.receita("clientes-sp", versao=1)    # versão anterior (Dev, por 30 dias)
+```
+
+No grátis cabe 1 receita, e cada chamada devolve as 3 primeiras linhas. No Dev, quantas receitas você quiser, com
+até 2.000 linhas por chamada. A mesma receita também responde em `GET https://fakeforge.com.br/api/r/<nome>`.
+
 ## Comparação com as bibliotecas populares do PyPI
 
 | Recurso | fakeforge-br | [pycpfcnpj](https://pypi.org/project/pycpfcnpj/) | [brutils-py](https://pypi.org/project/brutils/) | [mkfbr](https://pypi.org/project/mkfbr/) | faker (pt-BR) | python-brasilidades |
